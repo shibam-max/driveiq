@@ -1,0 +1,17 @@
+.env
+.env.local
+target/
+*.class
+__pycache__/
+*.pyc
+.venv/
+venv/
+node_modules/
+.next/
+.terraform/
+*.tfstate
+*.tfstate.backup
+.idea/
+.vscode/
+*.pem
+*.key
