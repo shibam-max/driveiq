@@ -1,0 +1,116 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: market-intel-daily
+  namespace: driveiq
+spec:
+  schedule: "30 20 * * *"   # 20:30 UTC = 02:00 IST
+  concurrencyPolicy: Forbid  # never run two at once
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        spec:
+          serviceAccountName: orchestrator-sa
+          restartPolicy: OnFailure
+          containers:
+            - name: market-intel
+              image: ACCOUNT.dkr.ecr.ap-south-1.amazonaws.com/driveiq/orchestrator:latest
+              command: ["python", "-m", "agents.market_intel_agent", "--run-daily"]
+              env:
+                - name: DATABASE_URL
+                  valueFrom:
+                    secretKeyRef:
+                      name: driveiq-secrets
+                      key: database-url
+                - name: REDIS_URL
+                  valueFrom:
+                    secretKeyRef:
+                      name: driveiq-secrets
+                      key: redis-url
+                - name: OPENAI_API_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: driveiq-secrets
+                      key: openai-api-key
+              resources:
+                requests:
+                  cpu: 500m
+                  memory: 512Mi
+                limits:
+                  cpu: 1000m
+                  memory: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: orchestrator
+  namespace: driveiq
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: orchestrator
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: orchestrator
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: orchestrator-sa
+      containers:
+        - name: orchestrator
+          image: ACCOUNT.dkr.ecr.ap-south-1.amazonaws.com/driveiq/orchestrator:latest
+          ports:
+            - containerPort: 8000
+            - containerPort: 9090
+              name: metrics
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: 2000m
+              memory: 2Gi
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 30
+            periodSeconds: 20
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: orchestrator-hpa
+  namespace: driveiq
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: orchestrator
+  minReplicas: 2
+  maxReplicas: 6
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 60
