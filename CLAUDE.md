@@ -144,13 +144,6 @@ Code:
 - **Database migrations** — I write these by hand, too risky to get wrong
 - **Anything I can't fully explain** — if I can't review it line by line, it doesn't ship
 
----
-
-## What This File Says About Me
-
-I wrote this file because Cars24 asked for it — and because I think it's a fair question.
-How you use AI tells you a lot about how an engineer thinks.
-
 I use Claude as a force multiplier for the parts of software engineering that are
 well-defined and repeatable. I keep human judgment — mine — on the parts that require
 context, taste, and accountability.
